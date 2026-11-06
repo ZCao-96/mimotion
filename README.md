@@ -117,32 +117,29 @@
 
 ### 四、自定义启动时间
 
-#### 两种方式自定义启动时间
+#### 固定排程（当前使用）
 
-##### 1、添加名为 `CRON_HOURS` 的Variables变量 `Settings-->Secrets and variables-->Actions-->New repository variables` 注意不是Secret
-
--
-快捷跳转地址 [https://github.com/${你的github用户名}/mimotion/settings/variables/actions](../../settings/variables/actions)
-    - 填写自动执行的时间，单位为小时，此处需要设置UTC时间，例如设置 `0,2,4,6,8,14` 则会在北京时间 `8,10,12,14,16,22` 点触发执行
-- 添加完成后可以在Actions中手动触发：`Random Cron` 来触发替换，或者等下一次定时执行时它将会自动替换。
-
-##### 2、编辑 **.github/workflows/run.yml** 中的cron表达式
-
-- cron表达式格式如下: `分 小时 日期 月份 年份`
-- github actions中执行时间为UTC时间，即**北京时间-8**，如果需要每天`8，10，12，14，16，22`
-  点执行，则设置cron为`0 0,2,4,6,8,14 * * *`
+- 直接编辑 **.github/workflows/run.yml** 中的cron表达式，格式为 `分 小时 日 月 星期`。
+- 当前设置为 `17 1,7,13 * * *`（UTC），即北京时间每天 **09:17、15:17、21:17**。
 
   ```yaml
   on:
     schedule:
-      - cron: '0 0,2,4,6,8,14 * * *'
+      - cron: '17 1,7,13 * * *'
+    workflow_dispatch:
+
+  concurrency:
+    group: mimotion-update
+    cancel-in-progress: false
   ```
 
-- **注意** 如果已添加 `CRON_HOURS` 变量，则修改此文件的cron表达式会失效，在下次执行 `Random Cron`
-  后表达式中小时的部分会被覆盖为 `CRON_HOURS` 配置的值
+- `mimotion-update` 并发组防止定时和手动运行同时更新步数；新运行不会取消正在执行的运行。
+- **保持 `Random Cron` 工作流禁用，也不要手动触发它**，否则它会修改固定排程。禁用期间无需修改已有的 `CRON_HOURS` 变量。
+- GitHub Actions可能排队延迟，实际开始时间不保证精确到指定分钟。
 
-- 注意以上两种方式二选一即可，推荐直接使用方式1，变量值填写的是逗号分隔的数字，别乱填别的报错别找我！
-- github actions 0点为执行高峰，排队可能会延后一两小时才执行，建议直接从2开始
+#### 可选随机排程（当前禁用）
+
+- 原有 `Random Cron` 根据 `CRON_HOURS` Variables变量生成随机分钟；小时使用UTC时间。该功能与当前固定排程二选一，启用或手动触发它会覆盖上述设置。
 
 ### 五、手动触发测试工作流
 
@@ -150,7 +147,7 @@
   ，快捷链接：[https://github.com/${你的github用户名}/mimotion/actions/workflows/run.yml](../../actions/workflows/run.yml)
 - 新fork的仓库默认未启用工作流，进入Actions后点击 `I understand my workflows, go ahead and enable them`
   启用，然后左侧选择 `刷步数` 之后，再点击 `enable workflow` 启用工作流。请确保开启工作流，否则不会定时执行。
-- 点击右侧的`Run workflow`触发执行，触发后刷新即可查看执行记录。验证是否正确配置并执行刷步数。
+- 点击右侧的`Run workflow`，选择最新`master`新建一次执行（不要重新运行旧job），触发后刷新查看执行记录。除工作流结果外，还需检查`开始`步骤中的账号总数、成功数和失败数。
 
 ### 六、感谢列表
 
@@ -181,10 +178,7 @@
 
 ## 注意事项
 
-1. 默认每天运行6+次，由run.yml中的cron控制，分钟为随机值，执行后自动更新分钟值，随机后可能当前整点二次执行，例如：8:
-   05分执行后，分钟值随机为50，则会在8:50再次执行。
-
-- 如果配置了 `CRON_HOURS` Variable变量，则脚本将自动判断，例如8:05分执行后，将从小时中剔除8，即8:00-8:59都不会再重复执行，避免随机的步数混乱。
+1. 当前每天固定安排3次运行（北京时间09:17、15:17、21:17），由run.yml中的cron控制。保持 `Random Cron` 禁用，执行后不会随机修改排程；手动运行同样受 `mimotion-update` 并发组约束。
 
 2. 多账户的数量和密码请一定要对上 不然无法使用!!!
 
@@ -213,7 +207,7 @@
     - 执行步骤中主要关注 `开始` ，点击 `开始` 展开详情
     - 展开后便可以查看到执行日志，如果执行成功，则会显示每个账号当前随机的步数是多少
     - 如果执行失败，则需要根据实际情况分析具体失败原因
-- 对于随机Cron的工作流 `Random Cron`，它会在 `刷步数` 执行成功后触发，执行后会更新cron表达式创建随机的分钟值，然后提交到git仓库。这一步失败的主要原因有：
+- 以下仅适用于可选随机排程，当前固定排程不执行这些步骤。`Random Cron` 启用后会在 `刷步数` 执行成功后触发，更新cron表达式创建随机分钟并提交到git仓库。这一步失败的主要原因有：
     - `PAT` Secret变量，也就是个人token设置的不正确
     - `CRON_HOURS` Variable变量设置的不正确，需要逗号分隔的小时字符串例如：`1,3,4,5,6,7` 。不要添加奇奇怪怪的东西
     - 其他请见执行日志

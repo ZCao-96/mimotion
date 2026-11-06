@@ -2,8 +2,12 @@ name: 刷步数
 
 on:
   schedule:
-    - cron: '19 9 * * *'
+    - cron: '17 1,7,13 * * *'
   workflow_dispatch:
+
+concurrency:
+  group: mimotion-update
+  cancel-in-progress: false
 
 jobs:
   build:
